@@ -16,14 +16,14 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
- 
+
 /** @file
     		This is the race information structures.
     @author	<a href=mailto:torcs@free.fr>Eric Espie</a>
     @version	$Id: raceman.h,v 1.28.2.7 2014/04/15 09:34:19 berniw Exp $
     @ingroup	raceinfo
 */
- 
+
 #ifndef _RACEMANV1_H_
 #define _RACEMANV1_H_
 
@@ -54,7 +54,9 @@ typedef int (*tfRmRunState) (struct RmInfo *);
 
 
 #define RCM_MAX_DT_SIMU		0.002
-#define RCM_MAX_DT_ROBOTS	0.02
+#define RCM_MAX_DT_ROBOTS	0.099//0.002//0.099 //0.0099 frequenza di campionamento
+//#define RCM_MAX_DT_ROBOTS	0.02
+//#define RCM_MAX_DT_ROBOTS	0.0095
 
 /** General info on current race */
 typedef struct {
@@ -87,11 +89,11 @@ typedef struct Situation {
     double		deltaTime;
     double		currentTime;	/**< current time in sec since the beginning of the simulation */
     int			nbPlayers;	/**< number of human player in local (splitted screen) */
-    tCarElt		**cars;		/**< list of cars */ 
+    tCarElt		**cars;		/**< list of cars */
 } tSituation;
 
 /** Race Engine */
-typedef struct 
+typedef struct
 {
     tTrackItf	trackItf;
     tGraphicItf	graphicItf;
@@ -112,7 +114,7 @@ typedef struct
 #define RE_STATE_EXIT			14
 
 /** Race Engine Car Information about the race */
-typedef struct 
+typedef struct
 {
     tTrkLocPos	prevTrkPos;
     tdble	sTime;
@@ -334,7 +336,7 @@ typedef struct RmInfo
 
 #define RE_SECT_STANDINGS	"Standings"
 #define RE_SECT_RESULTS		"Results"
-#define RE_SECT_RANK		"Rank"		
+#define RE_SECT_RANK		"Rank"
 
 #define RE_ATTR_NAME		"name"
 #define RE_ATTR_CAR		"car"
@@ -350,7 +352,4 @@ typedef struct RmInfo
 #define RE_ATTR_POINTS		"points"
 #define RE_ATTR_PENALTYTIME	"penaltytime"
 
-#endif /* _RACEMANV1_H_ */ 
-
-
-
+#endif /* _RACEMANV1_H_ */

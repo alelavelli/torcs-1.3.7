@@ -22,6 +22,8 @@
 	@author	Bernhard Wymann, Eric Espie
 	@version	$Id: human.cpp,v 1.45.2.18 2014/05/22 11:51:24 berniw Exp $
 */
+/*umbi*/
+#include <iostream>
 
 
 #ifdef _WIN32
@@ -42,14 +44,21 @@
 #include <raceman.h>
 #include <robottools.h>
 #include <robot.h>
+//AL
+#include "human_sensors.h"
+//END AL
 
 #include <playerpref.h>
 #include "pref.h"
 #include "human.h"
 
+#include <bits/stdc++.h>
+#include <sys/stat.h>
+
 #define DRWD 0
 #define DFWD 1
 #define D4WD 2
+#define TELEMETRY
 
 static void initTrack(int index, tTrack* track, void *carHandle, void **carParmHandle, tSituation *s);
 static void drive_mt(int index, tCarElt* car, tSituation *s);
@@ -58,6 +67,8 @@ static void newrace(int index, tCarElt* car, tSituation *s);
 static int  pitcmd(int index, tCarElt* car, tSituation *s);
 
 int joyPresent = 0;
+/* umbi */
+int startTelMon = 1;
 
 static tTrack	*curTrack;
 
@@ -68,7 +79,9 @@ static tCtrlMouseInfo	*mouseInfo = NULL;
 static int		masterPlayer = -1;
 
 tHumanContext *HCtx[10] = {0};
-
+//AL
+static Sensors *trackSens[10];
+//END AL
 static int speedLimiter	= 0;
 static tdble Vtarget;
 
@@ -262,7 +275,6 @@ static void initTrack(int index, tTrack* track, void *carHandle, void **carParmH
 	int idx = index - 1;
 
 	curTrack = track;
-
 	snprintf(sstring, BUFSIZE, "Robots/index/%d", index);
 	snprintf(buf, BUFSIZE, "%sdrivers/human/human.xml", GetLocalDir());
 	void *DrvInfo = GfParmReadFile(buf, GFPARM_RMODE_REREAD | GFPARM_RMODE_CREAT);
@@ -277,7 +289,7 @@ static void initTrack(int index, tTrack* track, void *carHandle, void **carParmH
 		*carParmHandle = RtParmReadSetup(RACE, "human", index, track->internalname, carname);
 	}
 
-	// If session type is "qualifying" and we have a qualifying setup use it, use qualifying setup as 
+	// If session type is "qualifying" and we have a qualifying setup use it, use qualifying setup as
 	// fallback if not race setup is available
 	if (s->_raceType == RM_TYPE_QUALIF || (*carParmHandle == NULL && s->_raceType == RM_TYPE_RACE)) {
 		*carParmHandle = RtParmReadSetup(QUALIFYING, "human", index, track->internalname, carname);
@@ -335,7 +347,13 @@ void newrace(int index, tCarElt* car, tSituation *s)
 	if (HCtx[idx]->MouseControlUsed) {
 		GfctrlMouseCenter();
 	}
-
+    //AL
+    // Initialization of track sensors
+    trackSens[idx] = new Sensors(car, 19);
+    //for (int i = 0; i < 19; ++i) {
+     //   trackSens[idx]->setSensor(i, -90 + 10.0*i, 200);
+    //}
+    //END AL
 	memset(keyInfo, 0, sizeof(keyInfo));
 	memset(skeyInfo, 0, sizeof(skeyInfo));
 
@@ -346,15 +364,60 @@ void newrace(int index, tCarElt* car, tSituation *s)
 #ifndef WIN32
 #ifdef TELEMETRY
 	if (s->_raceType == RM_TYPE_PRACTICE) {
+		// channels
+		printf("Monitoring PRACTICE\n");
 		RtTelemInit(-10, 10);
+        RtTelemNewChannel("Lap", &HCtx[idx]->lap_n, 0, 0);
 		RtTelemNewChannel("Dist", &HCtx[idx]->distToStart, 0, 0);
 		RtTelemNewChannel("Ax", &car->_accel_x, 0, 0);
 		RtTelemNewChannel("Ay", &car->_accel_y, 0, 0);
-		RtTelemNewChannel("Steer", &car->ctrl->steer, 0, 0);
-		RtTelemNewChannel("Throttle", &car->ctrl->accelCmd, 0, 0);
-		RtTelemNewChannel("Brake", &car->ctrl->brakeCmd, 0, 0);
 		RtTelemNewChannel("Gear", &HCtx[idx]->Gear, 0, 0);
-		RtTelemNewChannel("Speed", &car->_speed_x, 0, 0);
+		RtTelemNewChannel("rpm", &car->_enginerpm, 0, 0);
+		RtTelemNewChannel("Speed_x", &car->_speed_x, 0, 0);
+		RtTelemNewChannel("Speed_y", &car->_speed_y, 0, 0);
+		RtTelemNewChannel("Speed_z", &car->_speed_z, 0, 0);
+		//float dist_to_middle = 2*car->_trkPos.toMiddle/(car->_trkPos.seg->width);
+		RtTelemNewChannel("trk_to_middle", &car->_trkPos.toMiddle, 0, 0);
+		RtTelemNewChannel("trk_width", &car->_trkPos.seg->width, 0, 0);
+		RtTelemNewChannel("X", &car->_pos_X, 0, 0);
+		RtTelemNewChannel("Y", &car->_pos_Y, 0, 0);
+		RtTelemNewChannel("Z", &car->_pos_Z, 0, 0);
+		RtTelemNewChannel("roll", &car->_roll, 0, 0);
+		RtTelemNewChannel("pitch", &car->_pitch, 0, 0);
+		RtTelemNewChannel("yaw", &car->_yaw, 0, 0);
+		RtTelemNewChannel("speedGlobalX", &car->_speed_X, 0, 0);
+		RtTelemNewChannel("speedGlobalY", &car->_speed_Y, 0, 0);
+        //AL: angle of the car wrt the track
+        //RtTelemNewChannel("trkPos_toStart", &(car->_trkPos.toStart), 0, 0);
+        //RtTelemNewChannel("trkPos_angle", &(HCtx[idx]->trkSeg_angle), 0, 0);
+        //RtTelemNewChannel("trkPos_type", &(HCtx[idx]->trkSeg_type), 0, 0);
+        RtTelemNewChannel("angle", &(HCtx[idx]->angle), 0, 0);
+        RtTelemNewChannel("track_angle", &(HCtx[idx]->track_angle), 0, 0);
+        RtTelemNewChannel("track_sensors_0", &(HCtx[idx]->track_sensors_0), 0, 0);
+        RtTelemNewChannel("track_sensors_1", &(HCtx[idx]->track_sensors_1), 0, 0);
+        RtTelemNewChannel("track_sensors_2", &(HCtx[idx]->track_sensors_2), 0, 0);
+        RtTelemNewChannel("track_sensors_3", &(HCtx[idx]->track_sensors_3), 0, 0);
+        RtTelemNewChannel("track_sensors_4", &(HCtx[idx]->track_sensors_4), 0, 0);
+        RtTelemNewChannel("track_sensors_5", &(HCtx[idx]->track_sensors_5), 0, 0);
+        RtTelemNewChannel("track_sensors_6", &(HCtx[idx]->track_sensors_6), 0, 0);
+        RtTelemNewChannel("track_sensors_7", &(HCtx[idx]->track_sensors_7), 0, 0);
+        RtTelemNewChannel("track_sensors_8", &(HCtx[idx]->track_sensors_8), 0, 0);
+        RtTelemNewChannel("track_sensors_9", &(HCtx[idx]->track_sensors_9), 0, 0);
+        RtTelemNewChannel("track_sensors_10", &(HCtx[idx]->track_sensors_10), 0, 0);
+        RtTelemNewChannel("track_sensors_11", &(HCtx[idx]->track_sensors_11), 0, 0);
+        RtTelemNewChannel("track_sensors_12", &(HCtx[idx]->track_sensors_12), 0, 0);
+        RtTelemNewChannel("track_sensors_13", &(HCtx[idx]->track_sensors_13), 0, 0);
+        RtTelemNewChannel("track_sensors_14", &(HCtx[idx]->track_sensors_14), 0, 0);
+        RtTelemNewChannel("track_sensors_15", &(HCtx[idx]->track_sensors_15), 0, 0);
+        RtTelemNewChannel("track_sensors_16", &(HCtx[idx]->track_sensors_16), 0, 0);
+        RtTelemNewChannel("track_sensors_17", &(HCtx[idx]->track_sensors_17), 0, 0);
+        RtTelemNewChannel("track_sensors_18", &(HCtx[idx]->track_sensors_18), 0, 0);
+        //END AL
+
+		// commands
+		RtTelemNewChannel("Steer", &car->_steerCmd, 0, 0);
+		RtTelemNewChannel("Throttle", &car->_accelCmd, 0, 0);
+		RtTelemNewChannel("Brake", &car->_brakeCmd, 0, 0);
 	}
 #endif
 #endif
@@ -366,10 +429,10 @@ void newrace(int index, tCarElt* car, tSituation *s)
 		HCtx[idx]->drivetrain = DFWD;
 	} else if (strcmp(traintype, VAL_TRANS_4WD) == 0) {
 		HCtx[idx]->drivetrain = D4WD;
-	} 
+	}
 
 	tControlCmd	*cmd = HCtx[idx]->CmdControl;
-	if (cmd[CMD_CLUTCH].type != GFCTRL_TYPE_JOY_AXIS && 
+	if (cmd[CMD_CLUTCH].type != GFCTRL_TYPE_JOY_AXIS &&
 			cmd[CMD_CLUTCH].type != GFCTRL_TYPE_MOUSE_AXIS)
 		HCtx[idx]->autoClutch = 1;
 	else
@@ -473,11 +536,54 @@ static void common_drive(int index, tCarElt* car, tSituation *s)
 		firstTime = 0;
     }
 
-
 	HCtx[idx]->distToStart = RtGetDistFromStart(car);
 
 	HCtx[idx]->Gear = (tdble)car->_gear;	/* telemetry */
+    //AL
+    tdble trackangle = RtTrackSideTgAngleL(&(car->_trkPos));
+    tdble angle = trackangle - car->_yaw;
+    NORM_PI_PI(angle);
+    HCtx[idx]->angle = angle;
+    HCtx[idx]->track_angle = trackangle;
 
+    // update the value of track sensors only as long as the car is inside the track
+    float trackSensorOut[19];
+    float dist_to_middle = 2*car->_trkPos.toMiddle/(car->_trkPos.seg->width);
+    if (dist_to_middle<=1.0 && dist_to_middle >=-1.0 )
+    {
+        trackSens[idx]->sensors_update();
+        for (int i = 0; i < 19; ++i)
+        {
+            trackSensorOut[i] = trackSens[idx]->getSensorOut(i);
+        }
+    }
+    else
+    {
+        for (int i = 0; i < 19; ++i)
+        {
+            trackSensorOut[i] = -1;
+        }
+    }
+    HCtx[idx]->track_sensors_0 = trackSensorOut[0];
+    HCtx[idx]->track_sensors_1 = trackSensorOut[1];
+    HCtx[idx]->track_sensors_2 = trackSensorOut[2];
+    HCtx[idx]->track_sensors_3 = trackSensorOut[3];
+    HCtx[idx]->track_sensors_4 = trackSensorOut[4];
+    HCtx[idx]->track_sensors_5 = trackSensorOut[5];
+    HCtx[idx]->track_sensors_6 = trackSensorOut[6];
+    HCtx[idx]->track_sensors_7 = trackSensorOut[7];
+    HCtx[idx]->track_sensors_8 = trackSensorOut[8];
+    HCtx[idx]->track_sensors_9 = trackSensorOut[9];
+    HCtx[idx]->track_sensors_10 = trackSensorOut[10];
+    HCtx[idx]->track_sensors_11 = trackSensorOut[11];
+    HCtx[idx]->track_sensors_12 = trackSensorOut[12];
+    HCtx[idx]->track_sensors_13 = trackSensorOut[13];
+    HCtx[idx]->track_sensors_14 = trackSensorOut[14];
+    HCtx[idx]->track_sensors_15 = trackSensorOut[15];
+    HCtx[idx]->track_sensors_16 = trackSensorOut[16];
+    HCtx[idx]->track_sensors_17 = trackSensorOut[17];
+    HCtx[idx]->track_sensors_18 = trackSensorOut[18];
+    //END AL
 	GfScrGetSize(&scrw, &scrh, &dummy, &dummy);
 
 	memset(&(car->ctrl), 0, sizeof(tCarCtrl));
@@ -555,7 +661,7 @@ static void common_drive(int index, tCarElt* car, tSituation *s)
 			} else if (ax0 < cmd[CMD_LEFTSTEER].min) {
 				ax0 = cmd[CMD_LEFTSTEER].min;
 			}
-			
+
 			// normalize ax0 to -1..0
 			ax0 = (ax0 - cmd[CMD_LEFTSTEER].max) / (cmd[CMD_LEFTSTEER].max - cmd[CMD_LEFTSTEER].min);
 			leftSteer = -SIGN(ax0) * cmd[CMD_LEFTSTEER].pow * pow(fabs(ax0), cmd[CMD_LEFTSTEER].sens) / (1.0 + cmd[CMD_LEFTSTEER].spdSens * car->pub.speed);
@@ -603,7 +709,7 @@ static void common_drive(int index, tCarElt* car, tSituation *s)
 			} else if (ax0 < cmd[CMD_RIGHTSTEER].min) {
 				ax0 = cmd[CMD_RIGHTSTEER].min;
 			}
-			
+
 			// normalize ax to 0..1
 			ax0 = (ax0 - cmd[CMD_RIGHTSTEER].min) / (cmd[CMD_RIGHTSTEER].max - cmd[CMD_RIGHTSTEER].min);
 			rightSteer = -SIGN(ax0) * cmd[CMD_RIGHTSTEER].pow * pow(fabs(ax0), cmd[CMD_RIGHTSTEER].sens) / (1.0 + cmd[CMD_RIGHTSTEER].spdSens * car->pub.speed);
@@ -777,7 +883,7 @@ static void common_drive(int index, tCarElt* car, tSituation *s)
 	if (s->currentTime > 1.0) {
 		// thanks Christos for the following: gradual accel/brake changes for on/off controls.
 		const tdble inc_rate = 0.2f;
-		
+
 		if (cmd[CMD_BRAKE].type == GFCTRL_TYPE_JOY_BUT ||
 		    cmd[CMD_BRAKE].type == GFCTRL_TYPE_MOUSE_BUT ||
 		    cmd[CMD_BRAKE].type == GFCTRL_TYPE_KEYBOARD ||
@@ -810,7 +916,7 @@ static void common_drive(int index, tCarElt* car, tSituation *s)
 		car->_accelCmd = brake;
 	}
 
-	if (HCtx[idx]->ParamAbs) 
+	if (HCtx[idx]->ParamAbs)
 	{
 		if (fabs(car->_speed_x) > 10.0)
 		{
@@ -843,7 +949,7 @@ static void common_drive(int index, tCarElt* car, tSituation *s)
 	}
 
 
-	if (HCtx[idx]->ParamAsr) 
+	if (HCtx[idx]->ParamAsr)
 	{
     	tdble trackangle = RtTrackSideTgAngleL(&(car->_trkPos));
 		tdble angle = trackangle - car->_yaw;
@@ -880,7 +986,7 @@ static void common_drive(int index, tCarElt* car, tSituation *s)
 				drivespeed = ((car->_wheelSpinVel(FRNT_RGT) + car->_wheelSpinVel(FRNT_LFT)) *
 				              car->_wheelRadius(FRNT_LFT) +
 				              (car->_wheelSpinVel(REAR_RGT) + car->_wheelSpinVel(REAR_LFT)) *
-				              car->_wheelRadius(REAR_LFT)) / 4.0; 
+				              car->_wheelRadius(REAR_LFT)) / 4.0;
 				break;
 			case DFWD:
 				drivespeed = (car->_wheelSpinVel(FRNT_RGT) + car->_wheelSpinVel(FRNT_LFT)) *
@@ -910,24 +1016,33 @@ static void common_drive(int index, tCarElt* car, tSituation *s)
 		}
 	}
 
-
 #ifndef WIN32
 #ifdef TELEMETRY
-	if ((car->_laps > 1) && (car->_laps < 5)) {
-		if (HCtx[idx]->lap == 1) {
-			RtTelemStartMonitoring("Player");
+char file_name_date[50];
+	if ((car->_laps >= 0) && (car->_laps < 4)) {//if ((car->_laps >= 1) && (car->_laps < 5)) {//
+		if ((HCtx[idx]->lap == 0) && (startTelMon == 1)) {
+			printf("Start monitoring from human 1\n");
+			std::time_t t = std::time(0);
+			std::tm* now = std::localtime(&t);
+			snprintf(file_name_date, 50, "telemetry/forza_ow%d_%d_%d.csv", (now->tm_year + 1900), (now->tm_mon + 1), now->tm_mday);
+			RtTelemStartMonitoring(file_name_date);	/*FILE NAME forza_ow1.csv*/
+			startTelMon = 0;
 		}
 		RtTelemUpdate(car->_curLapTime);
+		/*printf("Update Tel \n");*/
 	}
-	if (car->_laps == 5) {
-		if (HCtx[idx]->lap == 4) {
+	if (car->_laps == 6) {//if (car->_laps == 2) {//
+		if (HCtx[idx]->lap == 5) {//if (HCtx[idx]->lap == 1) {//
 			RtTelemShutdown();
+			startTelMon = 1;
+			printf("Stop monitoring\n");
 		}
 	}
 #endif
 #endif
 
 	HCtx[idx]->lap = car->_laps;
+    HCtx[idx]->lap_n = (tdble)car->_laps;
 }
 
 
@@ -942,7 +1057,7 @@ static tdble getAutoClutch(int idx, int gear, int newgear, tCarElt *car)
 			HCtx[idx]->clutchtime -= RCM_MAX_DT_ROBOTS;
 		return 2.0f * HCtx[idx]->clutchtime;
 	}
-	
+
 	return 0.0f;
 }
 
@@ -960,7 +1075,7 @@ static tdble getAutoClutch(int idx, int gear, int newgear, tCarElt *car)
  *
  *
  * Remarks
- *	
+ *
  */
 static void drive_mt(int index, tCarElt* car, tSituation *s)
 {
@@ -1027,10 +1142,10 @@ static void drive_mt(int index, tCarElt* car, tSituation *s)
  *
  *
  * Return
- *	
+ *
  *
  * Remarks
- *	
+ *
  */
 static void drive_at(int index, tCarElt* car, tSituation *s)
 {
@@ -1100,7 +1215,7 @@ static void drive_at(int index, tCarElt* car, tSituation *s)
 		tdble omega = car->_enginerpmRedLine * car->_wheelRadius(2) * 0.95;
 		tdble shiftThld = 10000.0f;
 		if (car->_gearRatio[gear] != 0) {
-			shiftThld = omega / car->_gearRatio[gear];			
+			shiftThld = omega / car->_gearRatio[gear];
 		}
 
 		if (car->pub.speed > shiftThld) {
@@ -1183,4 +1298,3 @@ static int pitcmd(int index, tCarElt* car, tSituation *s)
 
 	return ROB_PIT_MENU; /* The player is able to modify the value by menu */
 }
-

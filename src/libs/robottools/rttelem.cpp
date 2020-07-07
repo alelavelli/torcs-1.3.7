@@ -19,7 +19,7 @@
 
 #if 0
 
-/** @file	
+/** @file
     		This is a collection of useful functions for using telemetry in a robot.
 		You can see an example of telemetry usage in the human driver.
     @author	<a href=mailto:torcs@free.fr>Eric Espie</a>
@@ -45,9 +45,9 @@
 #include <tgf.h>
 #include <portability.h>
 
-#if 0
 static tTelemItf	tlm;
 static tModList		*modlist = (tModList*)NULL;
+#if 0
 #endif
 
 /** Initialization of a telemetry session.
@@ -58,19 +58,20 @@ static tModList		*modlist = (tModList*)NULL;
  */
 void RtTelemInit(tdble ymin, tdble ymax)
 {
-#ifdef later
 	const int BUFSIZE = 256;
-    char	buf[BUFSIZE];
-    tModInfo	*curModInfo;
+	char	buf[BUFSIZE];
+	tModInfo	*curModInfo;
 
-    memset(&tlm, 0, sizeof(tTelemItf));
-    snprintf(buf, BUFSIZE, "%smodules/telemetry/%s.%s", "telemetry", GetLibDir (), DLLEXT);
-    if (GfModLoad(TLM_IDENT, buf, &modlist)) return;
-    GfOut("--- %s loaded ---\n", modlist->modInfo->name);
-    curModInfo = modlist->modInfo;
-    curModInfo->fctInit(curModInfo->index, &tlm);
+	memset(&tlm, 0, sizeof(tTelemItf));
+	/*snprintf(buf, BUFSIZE, "%smodules/telemetry/%s.%s", "telemetry", GetLibDir (), DLLEXT);*/
+	snprintf(buf, BUFSIZE, "%smodules/telemetry/%s.%s",  GetLibDir (), "telemetry", DLLEXT);
+	if (GfModLoad(TLM_IDENT, buf, &modlist)) return;
+	GfOut("--- %s loaded ---\n", modlist->modInfo->name);
+	curModInfo = modlist->modInfo;
+	curModInfo->fctInit(curModInfo->index, &tlm);
 
-    tlm.init(ymin, ymax);
+	tlm.init(ymin, ymax);
+#ifdef later
 #endif
 }
 
@@ -85,8 +86,8 @@ void RtTelemInit(tdble ymin, tdble ymax)
  */
 void RtTelemNewChannel(const char * name, tdble * var, tdble min, tdble max)
 {
+	tlm.newChannel(name, var, min, max);
 #if 0
-    tlm.newChannel(name, var, min, max);
 #endif
 }
 
@@ -97,8 +98,8 @@ void RtTelemNewChannel(const char * name, tdble * var, tdble min, tdble max)
  */
 void RtTelemStartMonitoring(const char * filename)
 {
+	tlm.startMonitoring(filename);
 #if 0
-    tlm.startMonitoring(filename);
 #endif
 }
 
@@ -108,8 +109,8 @@ void RtTelemStartMonitoring(const char * filename)
  */
 void RtTelemStopMonitoring(void)
 {
+	tlm.stopMonitoring();
 #if 0
-    tlm.stopMonitoring();
 #endif
 }
 
@@ -120,8 +121,8 @@ void RtTelemStopMonitoring(void)
  */
 void RtTelemUpdate(double time)
 {
+	tlm.update(time);
 #if 0
-    tlm.update(time);
 #endif
 }
 
@@ -131,9 +132,8 @@ void RtTelemUpdate(double time)
  */
 void RtTelemShutdown(void)
 {
+	tlm.shutdown();
+	GfModUnloadList(&modlist);
 #if 0
-    tlm.shutdown();
-    GfModUnloadList(&modlist);
 #endif
 }
-

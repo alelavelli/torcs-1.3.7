@@ -59,6 +59,7 @@ typedef struct sockaddr_in tSockAddrIn;
 /*** defines for UDP *****/
 #define UDP_LISTEN_PORT 3001
 #define UDP_ID "SCR"
+//#define UDP_DEFAULT_TIMEOUT 30000
 #define UDP_DEFAULT_TIMEOUT 10000
 #define UDP_MSGLEN 1000
 //#define __UDP_SERVER_VERBOSE__
@@ -103,6 +104,7 @@ static void shutdown(int index);
 static int  InitFuncPt(int index, void *pt);
 
 static double normRand(double avg,double std);
+static int autoGear(tCarElt *car, int gearFromGym);
 
 /**** variables for UDP ***/
 static int listenSocket[NBBOTS];
@@ -128,6 +130,10 @@ static float trackSensAngle[NBBOTS][19];
 static const char* botname[NBBOTS] = {"scr_server 1", "scr_server 2", "scr_server 3", "scr_server 4", "scr_server 5", "scr_server 6", "scr_server 7", "scr_server 8", "scr_server 9", "scr_server 10"};
 
 static unsigned long total_tics[NBBOTS];
+
+/* gear constants */
+const float SHIFT = 0.9;
+const float SHIFT_MARGIN = 4.0;
 
 /*
  * Module entry point
@@ -326,6 +332,27 @@ static void
 drive(int index, tCarElt* car, tSituation *s)
 {
 
+  // Gear changing.
+	/*if (myc->tr_mode == 0) {
+		if (car->_gear <= 0) {
+			car->_gearCmd =  1;
+		} else {
+			float gr_up = car->_gearRatio[car->_gear + car->_gearOffset];
+			float omega = car->_enginerpmRedLine/gr_up;
+			float wr = car->_wheelRadius(2);
+
+			if (omega*wr*myc->SHIFT < car->_speed_x) {
+				car->_gearCmd++;
+			} else {
+				float gr_down = car->_gearRatio[car->_gear + car->_gearOffset - 1];
+				omega = car->_enginerpmRedLine/gr_down;
+				if (car->_gear > 1 && omega*wr*myc->SHIFT > car->_speed_x + myc->SHIFT_MARGIN) {
+					car->_gearCmd--;
+				}
+			}
+		}
+	}*/
+
     total_tics[index]++;
 
 #ifdef __PRINT_RACE_RESULTS__
@@ -388,6 +415,9 @@ drive(int index, tCarElt* car, tSituation *s)
     float dist_to_middle = 2*car->_trkPos.toMiddle/(car->_trkPos.seg->width);
     // computing the car angle wrt the track axis
     float angle =  RtTrackSideTgAngleL(&(car->_trkPos)) - car->_yaw;
+    //AL
+    float track_angle = RtTrackSideTgAngleL(&(car->_trkPos));
+    //END AL
     NORM_PI_PI(angle); // normalize the angle between -PI and + PI
 
 	//Update focus sensors' angle
@@ -475,8 +505,42 @@ drive(int index, tCarElt* car, tSituation *s)
      **********************************************************************/
 
     string stateString;
-
     stateString =  SimpleParser::stringify("angle", angle);
+    //AL
+    stateString += SimpleParser::stringify("track_angle", track_angle);
+    stateString += SimpleParser::stringify("track_sensors", trackSensorOut, 19);
+    //END AL
+    stateString += SimpleParser::stringify("curLapTime", float(car->_curLapTime));
+    if (getDamageLimit())
+	    stateString += SimpleParser::stringify("damage", car->_dammage);
+    else
+	    stateString += SimpleParser::stringify("damage", car->_fakeDammage);
+    stateString += SimpleParser::stringify("distFromStart", car->race.distFromStartLine);
+    stateString += SimpleParser::stringify("acceleration_x", car->_accel_x);
+    stateString += SimpleParser::stringify("acceleration_y", car->_accel_y);
+    //stateString += SimpleParser::stringify("distRaced", distRaced[index]);
+    //stateString += SimpleParser::stringify("fuel", car->_fuel);
+    stateString += SimpleParser::stringify("Gear", car->_gear);
+    stateString += SimpleParser::stringify("lastLapTime", float(car->_lastLapTime));
+    //stateString += SimpleParser::stringify("opponents", oppSensorOut, 36);
+    //stateString += SimpleParser::stringify("racePos", car->race.pos);
+    stateString += SimpleParser::stringify("rpm", car->_enginerpm*10);
+    stateString += SimpleParser::stringify("speed_x", float(car->_speed_x  * 3.6));
+    stateString += SimpleParser::stringify("speed_y", float(car->_speed_y  * 3.6));
+    stateString += SimpleParser::stringify("speed_z", float(car->_speed_z  * 3.6));
+    //stateString += SimpleParser::stringify("track", trackSensorOut, 19);
+    stateString += SimpleParser::stringify("trackPos", dist_to_middle);
+    //stateString += SimpleParser::stringify("wheelSpinVel", wheelSpinVel, 4);
+    stateString += SimpleParser::stringify("z", car->_pos_Z  - RtTrackHeightL(&(car->_trkPos)));
+	  //stateString += SimpleParser::stringify("focus", focusSensorOut, 5);//ML
+    stateString += SimpleParser::stringify("x", car->_pos_X);
+    stateString += SimpleParser::stringify("y", car->_pos_Y);
+    stateString += SimpleParser::stringify("roll", car->_roll);
+    stateString += SimpleParser::stringify("pitch", car->_pitch);
+    stateString += SimpleParser::stringify("yaw", car->_yaw);
+    stateString += SimpleParser::stringify("speedGlobalX", car->_speed_X);
+    stateString += SimpleParser::stringify("speedGlobalY", car->_speed_Y);
+    /*stateString =  SimpleParser::stringify("angle", angle);
     stateString += SimpleParser::stringify("curLapTime", float(car->_curLapTime));
     if (getDamageLimit())
 	    stateString += SimpleParser::stringify("damage", car->_dammage);
@@ -504,7 +568,7 @@ drive(int index, tCarElt* car, tSituation *s)
     stateString += SimpleParser::stringify("pitch", car->_pitch);
     stateString += SimpleParser::stringify("yaw", car->_yaw);
     stateString += SimpleParser::stringify("speedGlobalX", car->_speed_X);
-    stateString += SimpleParser::stringify("speedGlobalY", car->_speed_Y);
+    stateString += SimpleParser::stringify("speedGlobalY", car->_speed_Y);*/
 
 
 
@@ -519,7 +583,7 @@ if (RESTARTING[index]==0)
 #endif
 
 #ifdef __STEP_LIMIT__
-    
+
     if (total_tics[index]>__STEP_LIMIT__)
     {
 	RESTARTING[index] = 1;
@@ -537,7 +601,7 @@ if (RESTARTING[index]==0)
 	return;
     }
 #endif
-	
+
 
     // Sending the car state to the client
     if (sendto(listenSocket[index], line, strlen(line) + 1, 0,
@@ -553,7 +617,10 @@ if (RESTARTING[index]==0)
     timeVal.tv_usec = UDP_TIMEOUT;
     memset(line, 0x0,1000 );
 
-    if (select(listenSocket[index]+1, &readSet, NULL, NULL, &timeVal))
+    // AL: Remove timeout to make select call bloking. In this way TORCS
+    // waits the agent until it sends the action.
+    //if (select(listenSocket[index]+1, &readSet, NULL, NULL, &timeVal))
+    if (select(listenSocket[index]+1, &readSet, NULL, NULL, NULL))
     {
         // Read the client controller action
         memset(line, 0x0,UDP_MSGLEN );  // Zero out the buffer.
@@ -590,7 +657,8 @@ if (RESTARTING[index]==0)
         // Set controls command and store them in variables
         oldAccel[index] = car->_accelCmd = carCtrl.getAccel();
         oldBrake[index] = car->_brakeCmd = carCtrl.getBrake();
-        oldGear[index]  = car->_gearCmd  = carCtrl.getGear();
+        //oldGear[index]  = car->_gearCmd  = carCtrl.getGear();
+        oldGear[index]  = car->_gearCmd  = autoGear(car, carCtrl.getGear()); // umbi
         oldSteer[index] = car->_steerCmd = carCtrl.getSteer();
         oldClutch[index] = car->_clutchCmd = carCtrl.getClutch();
 
@@ -688,7 +756,7 @@ if (curPosition==max_pos)
 	fprintf(f,"\n\n\n");
 	fclose(f);
 }
-//std::cout << "car,pos,points,time,bestLap,damages"<< std::endl;  
+//std::cout << "car,pos,points,time,bestLap,damages"<< std::endl;
 //std::cout << "champ" << (index+1) <<"," << position <<"," << points[position-1] <<"," << totalTime[index] <<"," << bestLap[index] <<"\t" << damages[index]<< std::endl;
 #endif
 
@@ -748,3 +816,34 @@ double normRand(double avg,double std)
 	    return y1*std + avg;
 }
 
+
+/* Compute gear */
+int autoGear(tCarElt *car, int gearFromGym)
+{
+  if (gearFromGym == 7) {
+    return 7;
+  }
+  /* shift to the first gear, if in neutral or reverse */
+	if (car->_gear <= 0) return 1;
+	  float gr_up = car->_gearRatio[car->_gear + car->_gearOffset];
+    float omega = car->_enginerpmRedLine/gr_up;
+    float wr = car->_wheelRadius(2);
+	/* shift up if allowed speed for the current gear (omega*wr*SHIFT) is exceeded */
+    if (omega*wr*SHIFT < car->_speed_x)
+	{
+        return car->_gear + 1;
+    }
+	else
+	{
+        float gr_down = car->_gearRatio[car->_gear + car->_gearOffset - 1];
+        omega = car->_enginerpmRedLine/gr_down;
+        /* If current gear is greater than one, check if current speed is lower than
+        allowed speed with the next lower gear. If so, shift down. */
+        if (car->_gear > 1 && omega*wr*SHIFT > car->_speed_x + SHIFT_MARGIN)
+		{
+            return car->_gear - 1;
+        }
+    }
+    /* If all of the above didn't apply, return the current gear. */
+    return car->_gear;
+}

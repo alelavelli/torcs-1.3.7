@@ -23,13 +23,14 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <bits/stdc++.h>  //umbi
 
 #include <tgf.h>
 #include <telemetry.h>
 
 #include "tlm.h"
 
-typedef struct Channel 
+typedef struct Channel
 {
     struct Channel	*next;
     const char		*name;	/* channel name */
@@ -46,7 +47,7 @@ typedef struct Tlm
     tdble	ymax;
     tChannel	*chanList;
 } tTlm;
-    
+
 static tTlm	TlmData;
 
 
@@ -110,68 +111,65 @@ TlmNewChannel(const char *name, tdble *var, tdble min, tdble max)
     }
 }
 
-void 
+void
 TlmStartMonitoring(const char *filename)
 {
+  printf("Start monitoring\n");
     const int BUFSIZE = 1024;
 	char	buf[BUFSIZE];
     FILE	*fout;
-    FILE	*fcmd;
+    /*FILE	*fcmd;*/
     tChannel	*curChan;
     int		i;
-    
+
     GfOut("Telemetry: start monitoring\n");
 
-    snprintf(buf, BUFSIZE, "telemetry/%s.cmd", filename);
-    fcmd = fopen(buf, "w");
-    if (fcmd == NULL) {
-	return;
-    }
-    fprintf(fcmd, "#!/bin/sh\n");
-    fprintf(fcmd, "gnuplot -persist > telemetry/%s.png <<!!\n", filename);
-    fprintf(fcmd, "#    set yrange [%f:%f]\n", TlmData.ymin, TlmData.ymax);
-    fprintf(fcmd, "    set grid\n");
-    fprintf(fcmd, "    set size 2.5,1.5\n");
-    fprintf(fcmd, "    set terminal png color\n");
-    fprintf(fcmd, "    set data style lines\n");
-    curChan = TlmData.chanList;
-    if (curChan != NULL) {
-	i = 2;
-	do {
-	    curChan = curChan->next;
-	    if (i == 2) {
-		fprintf(fcmd, "plot 'telemetry/%s.dat' using %d title '%s'", filename, i, curChan->name);
-	    } else {
-		fprintf(fcmd, ", '' using %d title '%s'", i, curChan->name);
-	    }
-	    i++;
-	} while (curChan != TlmData.chanList);
-	fprintf(fcmd, "\n");
-    }
-    fprintf(fcmd, "!!\n");
-    fclose(fcmd);
-    
-    TlmData.cmdfile = strdup(buf);
-    
-    snprintf(buf, BUFSIZE, "telemetry/%s.dat", filename);
-    fout = TlmData.file = fopen(buf, "w");
+    // Write header
+    snprintf(buf, BUFSIZE, filename);//snprintf(buf, BUFSIZE, "telemetry/%s", filename);
+    fout = TlmData.file = fopen(buf, "a");//fout = TlmData.file = fopen(buf, "w");
     if (fout == NULL) {
-	return;
+	      return;
     }
     curChan = TlmData.chanList;
     fprintf(fout, "time");
     if (curChan != NULL) {
-	do {
-	    curChan = curChan->next;
-	    fprintf(fout, "	%s", curChan->name);
-	} while (curChan != TlmData.chanList);
-	fprintf(fout, "\n");
+      do {
+          curChan = curChan->next;
+          fprintf(fout, ",%s", curChan->name);
+      } while (curChan != TlmData.chanList);
+      fprintf(fout, "\n");
     }
-    
+    // WRITE HEADER only if file doesn't already exist
+    /*struct stat buffer;
+    if(stat (filename, &buffer) != 0){
+      snprintf(buf, BUFSIZE, filename);//snprintf(buf, BUFSIZE, "telemetry/%s", filename);
+      fout = TlmData.file = fopen(buf, "w");//fout = TlmData.file = fopen(buf, "w");
+      if (fout == NULL) {
+  	      return;
+      }
+      printf("non esiste: metti header\n");
+      curChan = TlmData.chanList;
+      fprintf(fout, "time");
+      if (curChan != NULL) {
+      	do {
+      	    curChan = curChan->next;
+      	    fprintf(fout, ", %s", curChan->name);
+      	} while (curChan != TlmData.chanList);
+      	fprintf(fout, "\n");
+      }
+    }
+    else{
+      printf("esiste: no header\n");
+      snprintf(buf, BUFSIZE, filename);//snprintf(buf, BUFSIZE, "telemetry/%s", filename);
+      fout = TlmData.file = fopen(buf, "a");//fout = TlmData.file = fopen(buf, "w");
+      if (fout == NULL) {
+  	      return;
+      }
+    }*/
     TlmData.state = 1;
 }
 
-void 
+void
 TlmUpdate(double time)
 {
     FILE	*fout;
@@ -181,25 +179,26 @@ TlmUpdate(double time)
 	return;
     }
     fout = TlmData.file;
-    fprintf(fout, "%f ", time);
-    
+    fprintf(fout, "%f", time);
+
     curChan = TlmData.chanList;
     if (curChan != NULL) {
 	do {
 	    curChan = curChan->next;
-	    fprintf(fout, "%f ", curChan->scale * (*curChan->val));
+	    fprintf(fout, ",%f", curChan->scale * (*curChan->val));
 	} while (curChan != TlmData.chanList);
     }
     fprintf(fout, "\n");
 }
 
 
-void 
+void
 TlmStopMonitoring(void)
 {
+  char file_name_date[100];
 	const int BUFSIZE = 256;
     char	buf[BUFSIZE];
-    
+
     if (TlmData.state == 1) {
 	fclose(TlmData.file);
     }
@@ -207,9 +206,15 @@ TlmStopMonitoring(void)
     TlmData.state = 0;
     GfOut("Telemetry: stop monitoring\n");
 
-    snprintf(buf, BUFSIZE, "sh %s", TlmData.cmdfile);
-    system(buf);
+    /*snprintf(buf, BUFSIZE, "sh %s", TlmData.cmdfile);
+    system(buf);*/
     free(TlmData.cmdfile);
+    std::time_t t = std::time(0);
+    std::tm* now = std::localtime(&t);
+    snprintf(file_name_date, 100, "cp telemetry/forza_ow%d_%d_%d.csv ~/raw_torcs_data/", (now->tm_year + 1900), (now->tm_mon + 1), now->tm_mday);
+    //std::string str = "cp telemetry/forza_ow1.csv ~/baRricheLlo/raw_torcs_data/";
+   //const char *command = str.c_str();
+   system(file_name_date);
 }
 
 /*
