@@ -393,6 +393,7 @@ void newrace(int index, tCarElt* car, tSituation *s)
         //RtTelemNewChannel("trkPos_type", &(HCtx[idx]->trkSeg_type), 0, 0);
         RtTelemNewChannel("angle", &(HCtx[idx]->angle), 0, 0);
         RtTelemNewChannel("track_angle", &(HCtx[idx]->track_angle), 0, 0);
+        RtTelemNewChannel("track_pos", &HCtx[idx]->track_pos, 0, 0);
         RtTelemNewChannel("track_sensors_0", &(HCtx[idx]->track_sensors_0), 0, 0);
         RtTelemNewChannel("track_sensors_1", &(HCtx[idx]->track_sensors_1), 0, 0);
         RtTelemNewChannel("track_sensors_2", &(HCtx[idx]->track_sensors_2), 0, 0);
@@ -549,6 +550,7 @@ static void common_drive(int index, tCarElt* car, tSituation *s)
     // update the value of track sensors only as long as the car is inside the track
     float trackSensorOut[19];
     float dist_to_middle = 2*car->_trkPos.toMiddle/(car->_trkPos.seg->width);
+    HCtx[idx]->track_pos = dist_to_middle;
     if (dist_to_middle<=1.0 && dist_to_middle >=-1.0 )
     {
         trackSens[idx]->sensors_update();

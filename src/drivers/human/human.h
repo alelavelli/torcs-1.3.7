@@ -59,6 +59,7 @@ typedef struct HumanContext
     tdble lap_n;
     tdble angle;
     tdble track_angle;
+    tdble track_pos;
     tdble track_sensors_0;
     tdble track_sensors_1;
     tdble track_sensors_2;
