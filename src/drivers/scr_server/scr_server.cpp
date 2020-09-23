@@ -134,6 +134,10 @@ static unsigned long total_tics[NBBOTS];
 /* gear constants */
 const float SHIFT = 0.9;
 const float SHIFT_MARGIN = 4.0;
+//AL
+static tdble clutchtime = 0.0;
+static tdble getAutoClutch(int gear, int newgear, tCarElt *car);
+// END AL
 
 /*
  * Module entry point
@@ -635,7 +639,7 @@ if (RESTARTING[index]==0)
 #ifdef __UDP_SERVER_VERBOSE__
         std::cout << "Received: " << line << std::endl;
 #endif
-
+        
         std::string lineStr(line);
         CarControl carCtrl(lineStr);
         if (carCtrl.getMeta()==RACE_RESTART)
@@ -660,9 +664,11 @@ if (RESTARTING[index]==0)
         //oldGear[index]  = car->_gearCmd  = carCtrl.getGear();
         oldGear[index]  = car->_gearCmd  = autoGear(car, carCtrl.getGear()); // umbi
         oldSteer[index] = car->_steerCmd = carCtrl.getSteer();
-        oldClutch[index] = car->_clutchCmd = carCtrl.getClutch();
-
-		oldFocus[index] = car->_focusCmd = carCtrl.getFocus();//ML
+        //oldClutch[index] = car->_clutchCmd = carCtrl.getClutch();
+        //AL
+        oldClutch[index] = car->_clutchCmd = getAutoClutch(car->_gear, car->_gearCmd, car);
+        //END AL
+        oldFocus[index] = car->_focusCmd = carCtrl.getFocus();//ML
     }
     else
     {
@@ -825,7 +831,7 @@ int autoGear(tCarElt *car, int gearFromGym)
   }
   /* shift to the first gear, if in neutral or reverse */
 	if (car->_gear <= 0) return 1;
-	  float gr_up = car->_gearRatio[car->_gear + car->_gearOffset];
+	float gr_up = car->_gearRatio[car->_gear + car->_gearOffset];
     float omega = car->_enginerpmRedLine/gr_up;
     float wr = car->_wheelRadius(2);
 	/* shift up if allowed speed for the current gear (omega*wr*SHIFT) is exceeded */
@@ -846,4 +852,19 @@ int autoGear(tCarElt *car, int gearFromGym)
     }
     /* If all of the above didn't apply, return the current gear. */
     return car->_gear;
+}
+
+static tdble getAutoClutch(int gear, int newgear, tCarElt *car)
+{
+    if (newgear != 0 && newgear < car->_gearNb) {
+        if (newgear != gear) {
+            clutchtime = 0.332f - ((tdble) newgear / 65.0f);
+        }
+
+        if (clutchtime > 0.0f)
+            clutchtime -= RCM_MAX_DT_ROBOTS;
+        return 2.0f * clutchtime;
+    }
+
+    return 0.0f;
 }
